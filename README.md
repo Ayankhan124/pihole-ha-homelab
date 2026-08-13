@@ -1,8 +1,14 @@
 # Pi-hole High Availability Homelab
 
-A production-inspired DNS infrastructure homelab built with Debian 13, Pi-hole, Unbound, Keepalived, Prometheus, Grafana, Alertmanager, and Telegram notifications.
+> A production-inspired DNS infrastructure lab built to explore Linux, networking, DNS, high availability, monitoring, and infrastructure troubleshooting.
 
-The project was built to learn and demonstrate practical skills in **Linux administration, networking, DNS, high availability, monitoring, troubleshooting, backup, and infrastructure automation**.
+[![Debian](https://img.shields.io/badge/Debian-13-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
+[![Pi-hole](https://img.shields.io/badge/Pi--hole-DNS-96060C?logo=pihole&logoColor=white)](https://pi-hole.net/)
+[![Unbound](https://img.shields.io/badge/Unbound-Recursive%20DNS-4B5563)](https://www.nlnetlabs.nl/projects/unbound/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![Grafana](https://img.shields.io/badge/Grafana-Dashboards-F46800?logo=grafana&logoColor=white)](https://grafana.com/)
+
+This project uses two Pi-hole nodes with Keepalived/VRRP for DNS high availability and a dedicated monitoring VM running Prometheus, Grafana, Alertmanager, and exporters.
 
 ---
 
@@ -15,6 +21,18 @@ The following diagram illustrates the high-level architecture of the Pi-hole HA 
 DNS clients use the Keepalived virtual IP `172.29.144.4`. The active Pi-hole node provides DNS filtering and forwards recursive queries to its local Unbound resolver.
 
 The two Pi-hole nodes provide redundancy, while `monitor01` provides metrics, dashboards, health monitoring, and alerting.
+
+## ⭐ Key Highlights
+
+- Two-node Pi-hole DNS high availability
+- Keepalived / VRRP virtual IP failover
+- Unbound recursive DNS on both nodes
+- Dedicated Prometheus and Grafana monitoring
+- Pi-hole and system metrics collection
+- Blackbox service availability monitoring
+- Alertmanager with Telegram notifications
+- Backup and synchronization framework
+- Documented failure testing and troubleshooting
 
 ## ✨ Features
 
@@ -395,29 +413,49 @@ Through this project I gained practical experience with:
 
 ---
 
+## 🧰 Skills Demonstrated
+
+| Area | Skills |
+|---|---|
+| Linux | Debian, systemd, services, logs, configuration |
+| Networking | IPv4, DNS, routing, VRRP, virtual IPs |
+| DNS | Pi-hole, Unbound, DNSSEC, recursive DNS |
+| High Availability | Keepalived, failover, health checks |
+| Monitoring | Prometheus, Grafana, exporters, Blackbox |
+| Alerting | Alertmanager, Telegram notifications |
+| Reliability | Backup, synchronization, recovery |
+| Troubleshooting | Layered diagnosis, logs, configuration validation |
+| Virtualization | Oracle VirtualBox |
+| Documentation | Markdown, Git, GitHub |
+
 ## 📈 Project Status
 
-The core infrastructure and monitoring stack have been implemented.
+### Completed
 
-Current major components:
+- [x] Debian infrastructure
+- [x] Pi-hole DNS filtering
+- [x] Unbound recursive DNS
+- [x] Keepalived / VRRP high availability
+- [x] DNS service health checks
+- [x] Backup framework
+- [x] Synchronization framework
+- [x] Prometheus monitoring
+- [x] Grafana dashboards
+- [x] Node Exporter
+- [x] Pi-hole Exporter
+- [x] Blackbox Exporter
+- [x] Alertmanager
+- [x] Telegram notifications
+- [x] Documentation
+- [x] Failover testing
 
-```text
-[✓] Debian infrastructure
-[✓] Pi-hole
-[✓] Unbound
-[✓] Keepalived HA
-[✓] Health checks
-[✓] Backup framework
-[✓] Synchronization framework
-[✓] Prometheus
-[✓] Grafana
-[✓] Node Exporter
-[✓] Pi-hole Exporter
-[✓] Blackbox Exporter
-[✓] Alertmanager
-[✓] Telegram notifications
-[✓] Documentation
-```
+### Planned
+
+- [ ] Infrastructure as Code
+- [ ] Automated VM provisioning
+- [ ] Automated disaster-recovery testing
+- [ ] Centralized log management
+- [ ] Additional security monitoring
 
 ---
 

@@ -8,60 +8,13 @@ The project was built to learn and demonstrate practical skills in **Linux admin
 
 ## 🏗️ Architecture
 
-The infrastructure consists of two Pi-hole DNS nodes operating with a shared virtual IP and a dedicated monitoring server.
+The following diagram illustrates the high-level architecture of the Pi-hole HA homelab.
 
-```text
-                         DNS CLIENTS
-                              │
-                              │ DNS
-                              ▼
-                    ┌──────────────────┐
-                    │   HA Virtual IP  │
-                    │   172.29.144.4   │
-                    └────────┬─────────┘
-                             │
-                     Keepalived / VRRP
-                             │
-                ┌────────────┴────────────┐
-                │                         │
-                ▼                         ▼
-        ┌───────────────┐         ┌───────────────┐
-        │   pihole01    │         │   pihole02    │
-        │ 172.29.144.3  │         │ 172.29.144.2  │
-        │    PRIMARY    │         │   SECONDARY   │
-        ├───────────────┤         ├───────────────┤
-        │    Pi-hole   │         │    Pi-hole    │
-        │    Unbound   │         │    Unbound    │
-        │  Keepalived  │         │  Keepalived   │
-        └───────┬───────┘         └───────┬───────┘
-                │                         │
-                └────────────┬────────────┘
-                             │
-                       DNS Resolution
-                             │
-                             ▼
-                    Recursive DNS
-                       via Unbound
+![Pi-hole HA Architecture](screenshots/architecture.png)
 
+DNS clients use the Keepalived virtual IP `172.29.144.4`. The active Pi-hole node provides DNS filtering and forwards recursive queries to its local Unbound resolver.
 
-                    ┌──────────────────┐
-                    │    monitor01     │
-                    │  172.29.144.5    │
-                    ├──────────────────┤
-                    │   Prometheus     │
-                    │   Grafana        │
-                    │   Alertmanager   │
-                    │   Node Exporter  │
-                    │ Pi-hole Exporter │
-                    │ Blackbox Exporter│
-                    └────────┬─────────┘
-                             │
-                             ▼
-                          Telegram
-                         Notifications
-```
-
----
+The two Pi-hole nodes provide redundancy, while `monitor01` provides metrics, dashboards, health monitoring, and alerting.
 
 ## ✨ Features
 

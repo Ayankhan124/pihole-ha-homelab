@@ -1,0 +1,63 @@
+# Windows
+
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Windows temporary files
+
+*.tmp
+*.temp
+
+# Editors / IDEs
+
+.vscode/
+.idea/
+
+# Environment files
+
+.env
+.env.*
+!.env.example
+
+# Secrets
+
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# SSH
+
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Logs
+
+*.log
+logs/
+
+# Backups
+
+*.bak
+*.backup
+*.tar
+*.tar.gz
+*.zip
+
+# Virtual machine files
+
+*.vdi
+*.vmdk
+*.vhd
+*.vhdx
+*.ova
+*.ovf
+
+# OS-specific files
+
+.DS_Store

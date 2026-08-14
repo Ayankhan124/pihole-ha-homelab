@@ -1,370 +1,134 @@
-# Installation and Initial Setup
+# 🛠️ Installation and Initial Setup
 
-## 1. Overview
+This document outlines the step-by-step installation and preparation of the Pi-hole High Availability homelab. 
 
-This document describes the initial installation and preparation of the Pi-hole High Availability homelab.
-
-The infrastructure runs as virtual machines using Oracle VirtualBox and Debian 13.
-
-The installation is divided into several stages:
-
-1. Create the virtual machines
-2. Install Debian 13
-3. Configure networking
-4. Install Pi-hole
-5. Install Unbound
-6. Configure Keepalived
-7. Configure monitoring
-8. Configure backup and synchronization
+The infrastructure is hosted as virtual machines using Oracle VirtualBox, running Debian 13.
 
 ---
 
-## 2. Virtualization
+## 1. Virtualization & OS Provisioning
 
-The virtual machines are hosted using **Oracle VirtualBox**.
+Provision three virtual machines in Oracle VirtualBox. Install a fresh instance of Debian 13 on each node.
 
-The main infrastructure consists of:
+| VM Name     | Static IP      | Role                         |
+| ----------- | -------------: | ---------------------------- |
+| `pihole01`  | `172.29.144.3` | Primary Pi-hole + Unbound    |
+| `pihole02`  | `172.29.144.2` | Secondary Pi-hole + Unbound  |
+| `monitor01` | `172.29.144.5` | Monitoring and observability |
+| **HA VIP**  | **`172.29.144.4`** | **Client-facing DNS IP** |
 
-| VM          | Purpose                      |
-| ----------- | ---------------------------- |
-| `pihole01`  | Primary Pi-hole + Unbound    |
-| `pihole02`  | Secondary Pi-hole + Unbound  |
-| `monitor01` | Monitoring and observability |
-
-All systems use Debian 13.
-
----
-
-## 3. VM Network Configuration
-
-The Pi-hole servers use static IP addresses.
-
-### pihole01
-
-```text
-Hostname: pihole01
-IP:       172.29.144.3
-Role:     Primary Pi-hole
-```
-
-### pihole02
-
-```text
-Hostname: pihole02
-IP:       172.29.144.2
-Role:     Secondary Pi-hole
-```
-
-### monitor01
-
-```text
-Hostname: monitor01
-IP:       172.29.144.5
-Role:     Monitoring server
-```
-
-### High Availability VIP
-
-Keepalived provides the virtual IP used by DNS clients:
-
-```text
-VIP: 172.29.144.4
-```
-
-The VIP moves between `pihole01` and `pihole02` depending on the Keepalived state.
-
----
-
-## 4. Debian Installation
-
-Debian 13 was installed on each virtual machine.
-
-After installation, the basic system was updated:
+Once Debian 13 is installed, log into each VM and update the base system:
 
 ```bash
-sudo apt update
-sudo apt upgrade
+sudo apt update && sudo apt upgrade -y
+sudo apt install curl wget git vim nano htop -y
 ```
 
-Useful base utilities were installed as required:
-
+Set the hostname for each machine corresponding to its role:
 ```bash
-sudo apt install curl wget git vim nano htop
+sudo hostnamectl set-hostname pihole01 # Repeat for pihole02 and monitor01
 ```
-
-The hostname of each machine was configured according to its role.
-
-For example:
-
-```bash
-sudo hostnamectl set-hostname pihole01
-```
-
-The equivalent hostname was configured on the other machines.
 
 ---
 
-## 5. Network Configuration
+## 2. Network Configuration
 
-The Pi-hole nodes use static IPv4 addresses because DNS infrastructure should have predictable addresses.
+DNS infrastructure requires highly predictable addressing. You must assign static IPv4 addresses to your nodes before installing any services.
 
-The network configuration was configured through Debian's networking system.
-
-Example structure:
+Edit your Debian network interfaces file (typically `/etc/network/interfaces`):
 
 ```text
 auto eth0
 iface eth0 inet static
     address 172.29.144.3
-    gateway <gateway>
+    gateway <your_network_gateway>
 ```
+*(Adjust the IP and gateway for `pihole02` and `monitor01` accordingly).*
 
-The exact gateway and interface configuration should be adjusted according to the local network.
-
-After making network changes, connectivity was verified using tools such as:
-
+**Verify Connectivity:**
 ```bash
 ip addr
 ip route
-ping <gateway>
 ping 1.1.1.1
 ```
 
-DNS connectivity was also tested after the DNS infrastructure was installed.
-
 ---
 
-## 6. Pi-hole Installation
+## 3. Core DNS Installation (Pi-hole & Unbound)
 
-Pi-hole was installed on both DNS nodes.
+Perform these steps on **both** `pihole01` and `pihole02`.
 
-The installation was performed using the official Pi-hole installation method.
+### A. Install Unbound
+Unbound will act as the local recursive DNS resolver, querying root servers directly rather than relying on third-party upstream providers like Cloudflare.
 
-After installation, the following components were verified:
-
-```text
-Pi-hole Core
-Pi-hole Web
-Pi-hole FTL
+```bash
+sudo apt install unbound -y
 ```
-
-The Pi-hole nodes were then configured with their respective static IP addresses.
-
-The DNS service was tested locally before moving to the high-availability configuration.
-
----
-
-## 7. Unbound Installation
-
-Unbound was installed on both Pi-hole servers.
-
-Unbound acts as the local recursive DNS resolver.
-
-The architecture is:
-
+Configure Unbound to listen locally on port `5335` to avoid conflicting with Pi-hole on port `53`:
 ```text
-Client
-   │
-   ▼
-Pi-hole
-   │
-   ▼
-Unbound
-   │
-   ▼
-DNS root / authoritative servers
-```
-
-Unbound was configured to listen locally on:
-
-```text
+# Local resolution port
 127.0.0.1:5335
 ```
 
-This keeps the recursive resolver local to the Pi-hole node.
-
-The configuration was validated using:
-
-```bash
-sudo unbound-checkconf
-```
-
-The service was then checked:
+### B. Install Pi-hole
+Install Pi-hole using the official automated script:
 
 ```bash
-sudo systemctl status unbound
+curl -sSL [https://install.pi-hole.net](https://install.pi-hole.net) | bash
 ```
-
-A successful configuration should report that the Unbound service is active and that the configuration contains no validation errors.
+During the setup wizard:
+1. Confirm the static IP address.
+2. Set your custom upstream DNS server to point to the local Unbound instance (`127.0.0.1#5335`).
 
 ---
 
-## 8. Pi-hole and Unbound Integration
+## 4. High Availability (Keepalived)
 
-Pi-hole was configured to forward DNS requests to the local Unbound resolver.
+To prevent a single node failure from taking down your network, we use Keepalived to share a Virtual IP (VIP). Clients will query this VIP (`172.29.144.4`) instead of the individual nodes. 
 
-The resulting DNS path is:
-
-```text
-Client
-   │
-   ▼
-Pi-hole
-   │
-   │ DNS filtering
-   ▼
-Unbound :5335
-   │
-   │ Recursive resolution
-   ▼
-Internet DNS infrastructure
-```
-
-This allows Pi-hole to provide filtering while Unbound performs recursive DNS resolution.
-
----
-
-## 9. Keepalived Installation
-
-Keepalived was installed on both Pi-hole nodes.
-
-Its purpose is to provide a shared virtual IP address.
-
-The virtual IP is:
-
-```text
-172.29.144.4
-```
-
-The two nodes therefore have:
-
-```text
-pihole01 → 172.29.144.3
-pihole02 → 172.29.144.2
-VIP      → 172.29.144.4
-```
-
-Clients use the VIP instead of directly depending on one Pi-hole server.
-
----
-
-## 10. High Availability Concept
-
-Under normal operation, one Pi-hole node owns the virtual IP.
-
-For example:
-
-```text
-172.29.144.4
-      │
-      ▼
-pihole01
-172.29.144.3
-```
-
-If the active node becomes unavailable, Keepalived can move the VIP to the other node:
-
-```text
-172.29.144.4
-      │
-      ▼
-pihole02
-172.29.144.2
-```
-
-This provides redundancy for the DNS service.
-
----
-
-## 11. Initial Verification
-
-After installing the core components, the following checks were performed.
-
-### Check network interfaces
+Install Keepalived on **both** `pihole01` and `pihole02`:
 
 ```bash
-ip addr
+sudo apt install keepalived -y
 ```
 
-### Check routing
+*(See the dedicated [Keepalived Configuration](keepalived.md) document for the specific VRRP setup).*
 
-```bash
-ip route
-```
+---
 
-### Check Pi-hole
+## 5. Initial Verification
 
+Before moving on to the monitoring or synchronization setup, validate that the core infrastructure is healthy.
+
+**1. Validate Services:**
 ```bash
 pihole status
-```
-
-### Check Unbound
-
-```bash
 sudo systemctl status unbound
-```
-
-### Validate Unbound configuration
-
-```bash
-sudo unbound-checkconf
-```
-
-### Check Keepalived
-
-```bash
 sudo systemctl status keepalived
 ```
 
-### Test DNS resolution
-
-DNS resolution can be tested with:
-
+**2. Validate Configurations:**
 ```bash
-dig example.com @127.0.0.1
+sudo unbound-checkconf
 ```
 
-The DNS service was also tested through the HA virtual IP:
-
+**3. Test DNS Resolution:**
 ```bash
+# Test local Unbound resolution
+dig example.com @127.0.0.1 -p 5335
+
+# Test HA VIP resolution
 dig example.com @172.29.144.4
 ```
 
 ---
 
-## 12. Installation Result
+## ➡️ Next Steps
 
-At the end of the initial installation stage, the infrastructure contains:
+With the base installation complete, proceed to configure the specific components:
 
-```text
-pihole01
- ├── Debian 13
- ├── Pi-hole
- ├── Unbound
- └── Keepalived
-
-pihole02
- ├── Debian 13
- ├── Pi-hole
- ├── Unbound
- └── Keepalived
-
-monitor01
- └── Monitoring infrastructure
-```
-
-The DNS service is accessed through:
-
-```text
-172.29.144.4
-```
-
-The detailed configuration of each individual component is documented separately.
-
-See:
-
-* [Pi-hole](pihole.md)
-* [Unbound](unbound.md)
-* [Keepalived](keepalived.md)
-* [Monitoring](monitoring.md)
-* [Backup](backup.md)
+* [Pi-hole Configuration](pihole.md)
+* [Unbound Configuration](unbound.md)
+* [Keepalived Configuration](keepalived.md)
+* [Backup & Synchronization](backup.md)
+* [Monitoring & Observability](monitoring.md)

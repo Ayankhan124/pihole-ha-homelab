@@ -1,6 +1,6 @@
-# Pi-hole High Availability Homelab
+# 🛡️ Pi-hole High Availability Homelab
 
-> A production-inspired DNS infrastructure lab built to explore Linux, networking, DNS, high availability, monitoring, and infrastructure troubleshooting.
+> A production-inspired DNS infrastructure lab built to guarantee zero-downtime ad-blocking, utilizing Linux, Keepalived/VRRP, and a dedicated Prometheus monitoring stack.
 
 [![Debian](https://img.shields.io/badge/Debian-13-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
 [![Pi-hole](https://img.shields.io/badge/Pi--hole-DNS-96060C?logo=pihole&logoColor=white)](https://pi-hole.net/)
@@ -8,485 +8,95 @@
 [![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Dashboards-F46800?logo=grafana&logoColor=white)](https://grafana.com/)
 
-This project uses two Pi-hole nodes with Keepalived/VRRP for DNS high availability and a dedicated monitoring VM running Prometheus, Grafana, Alertmanager, and exporters.
+## 📖 The "Why"
+A single Pi-hole is incredible for network-wide ad-blocking and privacy. However, if that single node goes offline—due to OS updates, hardware reboots, or failure—your entire network loses DNS resolution. In short: no DNS means no internet. 
+
+This project solves this by using two Pi-hole nodes with Keepalived/VRRP for automatic failover, alongside Unbound for recursive DNS, and a dedicated VM for total observability.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Infrastructure
 
-The following diagram illustrates the high-level architecture of the Pi-hole HA homelab.
-
-![Pi-hole HA Architecture](screenshots/architecture.png)
-
-DNS clients use the Keepalived virtual IP `172.29.144.4`. The active Pi-hole node provides DNS filtering and forwards recursive queries to its local Unbound resolver.
-
-The two Pi-hole nodes provide redundancy, while `monitor01` provides metrics, dashboards, health monitoring, and alerting.
-
-## ⭐ Key Highlights
-
-- Two-node Pi-hole DNS high availability
-- Keepalived / VRRP virtual IP failover
-- Unbound recursive DNS on both nodes
-- Dedicated Prometheus and Grafana monitoring
-- Pi-hole and system metrics collection
-- Blackbox service availability monitoring
-- Alertmanager with Telegram notifications
-- Backup and synchronization framework
-- Documented failure testing and troubleshooting
-
-## ✨ Features
-
-### DNS Infrastructure
-
-* Pi-hole DNS filtering
-* Unbound recursive DNS
-* Local recursive resolution
-* DNS caching
-* DNSSEC validation
-* Separate DNS resolver on each Pi-hole node
-
-### High Availability
-
-* Two independent Pi-hole nodes
-* Keepalived
-* VRRP-based virtual IP
-* Automatic VIP failover
-* Service health monitoring
-* Client-facing DNS VIP
-
-### Monitoring & Observability
-
-* Prometheus metrics collection
-* Grafana dashboards
-* Node Exporter
-* Pi-hole Exporter
-* Blackbox Exporter
-* Alertmanager
-* Telegram notifications
-
-### Reliability
-
-* Configuration backup framework
-* Node synchronization
-* Recovery procedures
-* DNS failover testing
-* Layered troubleshooting methodology
-
----
-
-## 🖥️ Infrastructure
+DNS clients use a single Keepalived Virtual IP (VIP). The active Pi-hole node handles DNS filtering and forwards recursive queries to its local Unbound resolver.
 
 | Host        |     IP Address | Role                        |
 | ----------- | -------------: | --------------------------- |
 | `pihole01`  | `172.29.144.3` | Primary Pi-hole + Unbound   |
 | `pihole02`  | `172.29.144.2` | Secondary Pi-hole + Unbound |
-| `monitor01` | `172.29.144.5` | Monitoring                  |
-| HA VIP      | `172.29.144.4` | Client-facing DNS           |
+| `monitor01` | `172.29.144.5` | Monitoring VM               |
+| **HA VIP**  | **`172.29.144.4`** | **Client-facing DNS**   |
 
-### Operating System
+*(Built on Debian 13 utilizing Oracle VirtualBox).*
 
-**Debian 13**
-
-### Virtualization
-
-**Oracle VirtualBox**
+```mermaid
+flowchart TD
+    Client[Client] -->|DNS Request| VIP(Keepalived VIP: 172.29.144.4)
+    VIP --> Active[Active Pi-hole Node]
+    Active -->|DNS Filtering| Unbound(Unbound :5335)
+    Unbound -->|Recursive Resolution| DNS[External DNS Infrastructure]
+```
 
 ---
 
-## 🧩 Software Stack
+## 🚀 Critical Prerequisites & Quick Start
 
-| Technology        | Purpose                   |
-| ----------------- | ------------------------- |
-| Debian 13         | Operating system          |
-| Oracle VirtualBox | Virtualization            |
-| Pi-hole           | DNS filtering             |
-| Unbound           | Recursive DNS             |
-| Keepalived        | High availability / VRRP  |
-| Prometheus        | Metrics collection        |
-| Grafana           | Visualization             |
-| Alertmanager      | Alert management          |
-| Node Exporter     | System metrics            |
-| Pi-hole Exporter  | Pi-hole metrics           |
-| Blackbox Exporter | Active service monitoring |
-| Telegram          | Notifications             |
+Before diving into the detailed documentation, ensure your network is prepped:
+
+1. **Static IPs:** You *must* assign static IP addresses to both Pi-hole nodes (`172.29.144.2` and `.3`) at the OS level before running the Pi-hole installer.
+2. **Upstream DNS:** During Pi-hole installation, configure the upstream DNS to point to the local Unbound instance (`127.0.0.1#5335`).
+3. **Router Handoff:** Log into your router and change the LAN DHCP DNS settings to point **only** to the Keepalived VIP (`172.29.144.4`).
+4. **Synchronization:** To keep adlists, whitelists, and blacklists identical across both nodes, implement a synchronization framework (detailed in `docs/backup.md`).
 
 ---
 
-## 🌐 DNS Request Flow
+## 📊 Monitoring & Observability
 
-A normal DNS request follows this path:
+A dedicated monitoring VM (`172.29.144.5`) provides observability for the DNS infrastructure.
 
-```text
-Client
-  │
-  ▼
-172.29.144.4
-  │
-  ▼
-Keepalived VIP
-  │
-  ▼
-Active Pi-hole
-  │
-  │ DNS filtering
-  ▼
-Unbound :5335
-  │
-  │ Recursive resolution
-  ▼
-DNS infrastructure
-  │
-  ▼
-Response
-  │
-  ▼
-Client
-```
-
-The client only needs to know the virtual IP:
-
-```text
-172.29.144.4
-```
-
-It does not need to know which Pi-hole node currently owns the VIP.
+* **Metrics Collection:** Prometheus
+* **Dashboards:** Grafana
+* **Exporters:** Node Exporter (system), Pi-hole Exporter (application), Blackbox Exporter (active service monitoring)
+* **Alerting:** Alertmanager with Telegram notifications
 
 ---
 
-## 🔄 High Availability
+## 📚 Documentation Directory
 
-Keepalived provides the high-availability layer.
-
-Under normal operation:
-
-```text
-172.29.144.4
-      │
-      ▼
-pihole01
-172.29.144.3
-```
-
-If the active node becomes unavailable:
-
-```text
-pihole01
-    X
-```
-
-the VIP can move to:
-
-```text
-172.29.144.4
-      │
-      ▼
-pihole02
-172.29.144.2
-```
-
-Clients continue using the same DNS address.
-
-This prevents a single Pi-hole node from becoming a single point of failure.
-
----
-
-## 📊 Monitoring
-
-A dedicated monitoring VM provides observability for the DNS infrastructure.
-
-```text
-                 ┌─────────────┐
-                 │ Prometheus  │
-                 └──────┬──────┘
-                        │
-        ┌───────────────┼────────────────┐
-        │               │                │
-        ▼               ▼                ▼
- Node Exporter    Pi-hole Exporter   Blackbox Exporter
-        │               │                │
-        └───────────────┼────────────────┘
-                        │
-                        ▼
-                     Grafana
-                        │
-                        ▼
-                  Alertmanager
-                        │
-                        ▼
-                    Telegram
-```
-
-The monitoring system observes both infrastructure-level and application-level health.
-
----
-
-## 📚 Documentation
-
-Detailed documentation is available in the `docs/` directory.
+For step-by-step setup, refer to the `docs/` directory:
 
 | Document                                   | Description                                    |
 | ------------------------------------------ | ---------------------------------------------- |
-| [Architecture](docs/architecture.md)       | Overall infrastructure architecture            |
 | [Installation](docs/installation.md)       | Initial system and infrastructure setup        |
 | [Pi-hole](docs/pihole.md)                  | Pi-hole DNS filtering configuration            |
 | [Unbound](docs/unbound.md)                 | Recursive DNS configuration                    |
 | [Keepalived](docs/keepalived.md)           | High-availability and VIP configuration        |
-| [Backup](docs/backup.md)                   | Backup and synchronization framework           |
+| [Backup & Sync](docs/backup.md)            | Backup and node synchronization framework      |
 | [Monitoring](docs/monitoring.md)           | Prometheus, Grafana, exporters and alerting    |
-| [Troubleshooting](docs/troubleshooting.md) | Troubleshooting procedures and lessons learned |
 
 ---
 
-## 🧪 Testing
+## 🛠️ Testing & Troubleshooting
 
-The infrastructure is tested at multiple layers.
+This project uses a layered troubleshooting methodology to isolate failures:
+`Network` → `OS` → `Unbound` → `Pi-hole` → `Keepalived` → `VIP` → `Monitoring` → `Alerting`
 
-### Unbound
-
+**Quick Validation Commands:**
 ```bash
-dig example.com @127.0.0.1 -p 5335
-```
-
-### Pi-hole
-
-```bash
-dig example.com @127.0.0.1
-```
-
-### Individual Pi-hole nodes
-
-```bash
-dig example.com @172.29.144.3
-```
-
-```bash
-dig example.com @172.29.144.2
-```
-
-### HA DNS
-
-```bash
+# Test HA VIP Resolution
 dig example.com @172.29.144.4
-```
 
-### Unbound configuration
-
-```bash
+# Validate Unbound Configuration
 sudo unbound-checkconf
-```
 
-### Keepalived configuration
-
-```bash
+# Validate Keepalived Configuration
 sudo keepalived -t
 ```
-
-The infrastructure is also tested by simulating node and service failures to verify DNS availability and HA failover.
-
----
-
-## 🛠️ Troubleshooting Approach
-
-The project uses a layered troubleshooting methodology.
-
-```text
-Network
-   ↓
-Operating System
-   ↓
-Unbound
-   ↓
-Pi-hole
-   ↓
-Keepalived
-   ↓
-VIP
-   ↓
-Monitoring
-   ↓
-Alerting
-```
-
-This approach makes it easier to isolate the source of a failure instead of changing multiple components simultaneously.
-
-During development, this methodology was used to diagnose configuration problems including:
-
-* Missing Unbound root hints
-* Duplicate DNSSEC trust-anchor configuration
-* DNS resolution failures
-* Service health issues
-* HA/VIP behavior
-* Monitoring and exporter problems
+*See [Troubleshooting](docs/troubleshooting.md) for full diagnostic procedures.*
 
 ---
 
-## 🔐 Security
+## 🔐 Security & Disclaimer
 
-This repository is intended to contain **sanitized documentation and configuration examples**.
+**Disclaimer:** This is a personal homelab project created for educational purposes. IP addresses documented here are specific to this lab environment.
 
-Never commit:
-
-```text
-Passwords
-API tokens
-Private keys
-Telegram bot tokens
-SSH keys
-Pi-hole authentication secrets
-Network credentials
-```
-
-Use placeholders for sensitive values:
-
-```text
-TELEGRAM_BOT_TOKEN=<redacted>
-TELEGRAM_CHAT_ID=<redacted>
-```
-
-The Pi-hole administration and monitoring interfaces should not be exposed directly to the public Internet without appropriate security controls.
-
----
-
-## 🎯 Project Goals
-
-This homelab was built as a practical learning environment for:
-
-* Linux system administration
-* Computer networking
-* DNS
-* Recursive DNS
-* DNS filtering
-* High availability
-* VRRP
-* Monitoring
-* Observability
-* Alerting
-* Backup and recovery
-* Infrastructure troubleshooting
-* Automation
-
-The goal was not simply to install individual applications, but to understand how they work together as an infrastructure system.
-
----
-
-## 🧠 What I Learned
-
-Through this project I gained practical experience with:
-
-### Linux
-
-* Debian administration
-* systemd
-* service management
-* networking
-* logs
-* configuration validation
-* troubleshooting
-
-### Networking
-
-* IPv4 addressing
-* DNS
-* routing
-* virtual IPs
-* VRRP
-* network service troubleshooting
-
-### Infrastructure
-
-* Virtual machines
-* High availability
-* Service health checks
-* Backup strategies
-* Configuration synchronization
-* Recovery procedures
-
-### Monitoring
-
-* Metrics
-* Prometheus
-* Grafana
-* Exporters
-* Blackbox monitoring
-* Alertmanager
-* Notification systems
-
----
-
-## 🧰 Skills Demonstrated
-
-| Area | Skills |
-|---|---|
-| Linux | Debian, systemd, services, logs, configuration |
-| Networking | IPv4, DNS, routing, VRRP, virtual IPs |
-| DNS | Pi-hole, Unbound, DNSSEC, recursive DNS |
-| High Availability | Keepalived, failover, health checks |
-| Monitoring | Prometheus, Grafana, exporters, Blackbox |
-| Alerting | Alertmanager, Telegram notifications |
-| Reliability | Backup, synchronization, recovery |
-| Troubleshooting | Layered diagnosis, logs, configuration validation |
-| Virtualization | Oracle VirtualBox |
-| Documentation | Markdown, Git, GitHub |
-
-## 📈 Project Status
-
-### Completed
-
-- [x] Debian infrastructure
-- [x] Pi-hole DNS filtering
-- [x] Unbound recursive DNS
-- [x] Keepalived / VRRP high availability
-- [x] DNS service health checks
-- [x] Backup framework
-- [x] Synchronization framework
-- [x] Prometheus monitoring
-- [x] Grafana dashboards
-- [x] Node Exporter
-- [x] Pi-hole Exporter
-- [x] Blackbox Exporter
-- [x] Alertmanager
-- [x] Telegram notifications
-- [x] Documentation
-- [x] Failover testing
-
-### Planned
-
-- [ ] Infrastructure as Code
-- [ ] Automated VM provisioning
-- [ ] Automated disaster-recovery testing
-- [ ] Centralized log management
-- [ ] Additional security monitoring
-
----
-
-## 🚀 Future Improvements
-
-Possible future improvements include:
-
-* Infrastructure-as-Code
-* Automated VM provisioning
-* More extensive configuration management
-* Automated disaster-recovery testing
-* Additional security monitoring
-* Centralized log management
-* More advanced DNS performance monitoring
-* Automated configuration validation
-* Improved backup retention and off-host storage
-
----
-
-## ⚠️ Disclaimer
-
-This is a personal homelab project created for educational purposes.
-
-IP addresses and configuration examples documented here are specific to the lab environment and should not be copied directly into another network without modification.
-
-Sensitive credentials and secrets should never be published in this repository.
-
----
-
-## 📄 License
-
-This project is primarily intended as educational documentation.
-
-If configuration files, scripts, or other reusable code are added to the repository, an appropriate open-source license can be added here.
+**Security Note:** The Pi-hole administration and monitoring interfaces should not be exposed directly to the public Internet. Never commit passwords, API tokens, Telegram bot tokens, or SSH keys to this repository.
